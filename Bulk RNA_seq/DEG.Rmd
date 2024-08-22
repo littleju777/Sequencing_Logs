@@ -1,0 +1,419 @@
+---
+title: "differential analysis"
+output: html_document
+---
+results(dds, contrast=("cond","B","A"))
+
+returns log2(B/A)?
+
+```{r}
+load("/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+library(stringr)
+library(tidyverse)
+library(ggpubr)
+library(ggthemes)
+library(edgeR)
+library(DESeq2)
+library(metap)
+library(openxlsx)
+
+#delete 2 samples
+#epididWAT_F_Sed_ZT4_S201. Pituitary_M_Sed_ZT4_S429. 
+
+dge.list$epididWAT$counts <- dge.list$epididWAT$counts[,!colnames(dge.list$epididWAT$counts) %in% c("epididWAT_F_Sed_ZT4_S201")] 
+dge.list$Pituitary$counts <- dge.list$Pituitary$counts[,!colnames(dge.list$Pituitary$counts) %in% c("Pituitary_M_Sed_ZT4_S429")]
+
+dge.list$epididWAT$samples <- dge.list$epididWAT$samples[!rownames(dge.list$epididWAT$samples) %in% c("epididWAT_F_Sed_ZT4_S201"),]
+dge.list$Pituitary$samples <- dge.list$Pituitary$samples[!rownames(dge.list$Pituitary$samples) %in% c("Pituitary_M_Sed_ZT4_S429"),]
+
+#remove cerebel and cortex
+dge.list <- dge.list[-c(4,5)] 
+```
+
+# dge between sedvsrw zt4vs16 malevsfemale with DESeq2 
+"F_4_Sed","F_4_RW"
+"F_4_Sed","F_16_Sed"
+"M_4_Sed","F_4_Sed"
+```{r}
+dge.list <- map(dge.list, function(x){
+  x$samples  <- cbind(x$samples,condition = str_c(x$samples$Sex,'_',x$samples$ZT) %>% str_c(.,'_',x$samples$Group))
+  x})
+# convert dgelist to deseadataset
+library(DEFormats)
+library(DESeq2)
+dds.list = map(dge.list, function(x){
+  x$samples$group <- x$samples$condition
+  y <- DEFormats::as.DESeqDataSet(x)
+  DESeq(y)
+})
+
+# dge table 
+DGE <- function(dds,condition,file){
+  gene_diff <- results(dds, contrast=c("group", condition[1], condition[2]),independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff$log2FoldChange <- -(gene_diff$log2FoldChange)
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  name <- paste(file,unique(dds@colData$Tissue),sep = "/")
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/",name,"/",unique(dds@colData$Tissue),condition[1],"vs",condition[2])
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+
+condition_1 <- list(c("F_4_Sed","F_4_RW"),c("F_16_Sed","F_16_RW"),c("M_4_Sed","M_4_RW"),c("M_16_Sed","M_16_RW"))
+condition_2<- list(c("F_4_Sed","F_16_Sed"),c("F_4_RW","F_16_RW"),c("M_4_Sed","M_16_Sed"),c("M_4_RW","M_16_RW"))
+condition_3 <- list(c("M_4_Sed","F_4_Sed"),c("M_16_RW","F_16_RW"),c("M_16_Sed","F_16_Sed"),c("M_4_RW","F_4_RW"))
+df <- rbind(expand_grid(dds.list,condition.list=condition_1,file="deg_table_sedvsrw"),expand_grid(dds.list,condition.list=condition_2,file="deg_table_zt4vs16"),expand_grid(dds.list,condition.list=condition_3,file="deg_table_mvsf")) 
+pwalk(df, ~ DGE(..1,..2,..3))
+```
+
+#sed vs rw f/m. DESeq2
+"F_Sed","F_RW". : RW vs Sed
+"M_Sed","M_RW" : 
+"F_RW","M_RW" : M vs F
+"F_Sed","M_Sed"
+```{r}
+# convert dgelist to deseadataset
+library(DEFormats)
+library(DESeq2)
+dds.list = map(dge.list, function(x){
+  x$samples$condition = str_c(x$samples$Sex,'_',x$samples$Group)
+  x$samples$group <- x$samples$condition
+  y <- DEFormats::as.DESeqDataSet(x)
+  DESeq(y)
+})
+
+# dge table 
+DGE <- function(dds,condition){
+  gene_diff <- results(dds, contrast=c("group", condition[1], condition[2]),independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff$log2FoldChange <- -(gene_diff$log2FoldChange)
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_sedvsrw/",unique(dds@colData$Tissue),"/",unique(dds@colData$Tissue),condition[1],"vs",condition[2])
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+condition.list <- list(c("F_Sed","F_RW"),c("M_Sed","M_RW"), c("F_RW","M_RW"),c("F_RW","M_RW"))
+dgtable=expand_grid(dds.list,condition.list)
+walk2(.x=dgtable$dds.list,.y=dgtable$condition.list,.f=~ DGE(.x,.y))
+```
+
+
+#DESeq2 comapre 2 logfc from sed/rw f/m
+```{r}
+dds.list = map(dge.list, function(x){
+  y<-DESeqDataSetFromMatrix(countData=x$counts,colData=x$samples,design = ~Sex+Group+Sex:Group);
+  DESeq(y)
+})
+
+#[fold change of  ”RW F” vs ”Sed F”], compared to [fold change of ”RW M” vs ”Sed M”].
+DGE <- function(dds){
+  gene_diff <- results(dds,name="SexM.GroupSed",independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  #default: log2(Sed/Rw(M)) - log2(Sed/RW(F)) == log2(RW/Sed(F)) - log2(RW/Sed(M))
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_logfcfc/",unique(dds@colData$Tissue),"logFCFC_RWSedF_RWSedM")
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+
+walk(dds.list, ~ DGE(.))
+```
+
+#DESeq2 comapre 2 logfc from sed/rw fzt16/mzt16
+```{r}
+dds.list = map(dge.list, function(x){
+  x$samples$condition = str_c(x$samples$Sex,'_',x$samples$ZT)
+  y<-DESeqDataSetFromMatrix(countData=x$counts,colData=x$samples,design = ~condition+Group+condition:Group);
+  DESeq(y)
+})
+
+#[fold change of  ”RW FZT16” vs ”Sed FZT16”], compared to [fold change of ”RW MZT16” vs ”Sed MZT16”].
+DGE <- function(dds){
+  gene_diff <- results(dds,name="conditionM_16.GroupSed",independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  #default: log2(Sed/Rw(M_16)) - log2(Sed/RW(F_16)) == log2(RW/Sed(F_16)) - log2(RW/Sed(M_16))
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_logfcfc/",unique(dds@colData$Tissue),"logFCFC_RWSedF16_RWSedM16")
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+
+walk(dds.list, ~ DGE(.))
+```
+
+#DESeq2 comapre 2 logfc from sed/rw fzt4/mzt4
+```{r}
+#use the ddslit from above block
+
+#[fold change of  ”RW FZT4” vs ”Sed FZT4”], compared to [fold change of ”RW MZT4” vs ”Sed MZT4”].
+DGE <- function(dds){
+  dds$condition <- relevel(dds$condition, "F_4")
+  dds <- nbinomWaldTest(dds)
+  gene_diff <- results(dds,name="conditionM_4.GroupSed",independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  #default: log2(Sed/Rw(M_4)) - log2(Sed/RW(F_4)) == log2(RW/Sed(F_4)) - log2(RW/Sed(M_4))
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_logfcfc/",unique(dds@colData$Tissue),"logFCFC_RWSedF4_RWSedM4")
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+
+walk(dds.list, ~ DGE(.))
+```
+
+
+#dseq2 sed rw
+"Sed","RW" :RW vs Sed
+```{r}
+# convert dgelist to deseadataset
+library(DEFormats)
+library(DESeq2)
+dds.list = map(dge.list, function(x){
+  x$samples$group <- x$samples$Group
+  y <- DEFormats::as.DESeqDataSet(x)
+  DESeq(y)
+})
+
+# dge table 
+DGE <- function(dds,condition){
+  gene_diff <- results(dds, contrast=c("group", condition[1], condition[2]),independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff$log2FoldChange <- -(gene_diff$log2FoldChange)
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_sedvsrw/",unique(dds@colData$Tissue),"/",unique(dds@colData$Tissue),condition[1],"vs",condition[2])
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+condition.list <- list(c("Sed","RW"))
+dgtable=expand_grid(dds.list,condition.list)
+walk2(.x=dgtable$dds.list,.y=dgtable$condition.list,.f=~ DGE(.x,.y))
+```
+
+#dge sed vs rw  deseq2 ZT4/16
+"ZT4_Sed","ZT4_RW"
+"ZT16_Sed","ZT16_RW"
+"ZT4_RW","ZT16_RW" : ZT16 vs ZT4
+"ZT4_Sed","ZT16_Sed"
+```{r}
+# convert dgelist to deseadataset
+library(DEFormats)
+library(DESeq2)
+dds.list = map(dge.list, function(x){
+  x$samples$condition = str_c("ZT",x$samples$ZT,'_',x$samples$Group)
+  x$samples$group <- x$samples$condition
+  y <- DEFormats::as.DESeqDataSet(x)
+  DESeq(y)
+})
+
+# dge table 
+DGE <- function(dds,condition){
+  gene_diff <- results(dds, contrast=c("group", condition[1], condition[2]),independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff$log2FoldChange <- -(gene_diff$log2FoldChange)
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_zt4vs16/",unique(dds@colData$Tissue),"/",unique(dds@colData$Tissue),condition[1],"vs",condition[2])
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+condition.list <- list(c("ZT4_Sed","ZT4_RW"),c("ZT16_Sed","ZT16_RW"),c("ZT4_RW","ZT16_RW"),c("ZT4_Sed","ZT16_Sed"))
+dgtable=expand_grid(dds.list,condition.list)
+walk2(.x=dgtable$dds.list,.y=dgtable$condition.list,.f=~ DGE(.x,.y))
+```
+
+#DESeq2 comapre 2 logfc from sed/rw f/m
+```{r}
+dds.list = map(dge.list, function(x){
+  y<-DESeqDataSetFromMatrix(countData=x$counts,colData=x$samples,design = ~Group+Sex+Group:Sex);
+  DESeq(y)
+})
+
+#[fold change of  ”F RW” vs ”M RW”], compared to [fold change of ”F Sed” vs ”M Sed”].
+DGE <- function(dds){
+  gene_diff <- results(dds,name="GroupSed.SexM",independentFiltering=TRUE, alpha=0.05, pAdjustMethod="BH", parallel=TRUE)
+  #default: log2(M/F(Sed)) - log2(M/F(RW)) == log2(F/M(RW)) - log2(F/M(Sed))
+  gene_diff <- gene_diff[order(gene_diff$padj, gene_diff$log2FoldChange, decreasing = c(FALSE, TRUE)), ]
+  gene_diff[which(gene_diff$log2FoldChange >= 0 & gene_diff$padj < 0.05),'sig'] <- 'up'
+  gene_diff[which(gene_diff$log2FoldChange < 0 & gene_diff$padj < 0.05),'sig'] <- 'down'
+  gene_diff[which(gene_diff$padj >= 0.05),'sig'] <- 'none'
+  dgtable <- gene_diff %>% as.data.frame() %>% merge(dge.norm$genes,by=0,all.x = TRUE) %>% .[,-1]
+  filename <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_logfcfc/",unique(dds@colData$Tissue),"logFCFC_FMRW_FMSed")
+  print(unique(dds@colData$Tissue))
+  write.csv(dgtable, file = paste(filename,".csv",sep = ""))
+}
+
+walk(dds.list, ~ DGE(.))
+```
+
+#make a combined table
+```{r}
+library(metap)
+set.seed(100)
+funs <- function(x){
+    df=read.csv(x,row.names = "gene_id") %>% select(3,6,7,8)
+    filename=as.character(str_split(x, "/", simplify = TRUE)[,11]) 
+    suffix=as.character(str_split(filename, "\\.", simplify = TRUE)[,1])
+    colnames(df)=paste(paste(colnames(df),suffix,sep="_"),"deseq2",sep = "_")
+    df <- df %>% rownames_to_column(var = "gene_id")
+    return(df)
+}
+dge.list <- dge.list %>% map(function(x){
+  x$samples$col <- str_c(x$samples$Tissue,'_',x$samples$Sex,'_',x$samples$Group,'_ZT',x$samples$ZT)
+  return(x)
+})
+allcount=dge$counts
+
+combinealldata <- function(tissue){
+  
+  deseq.sedrw <- list.files(path = paste("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_sedvsrw",tissue,sep = "/"), full.names = TRUE) %>% 
+    map(funs) %>% purrr::reduce(inner_join, by = "gene_id")
+  
+  deseq.zt <- list.files(path = paste("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
+    map(funs) %>% purrr::reduce(inner_join, by = "gene_id")
+  
+  deseq.gender <- list.files(path = paste("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/deg_table_mvsf",tissue,sep = "/"), full.names = TRUE) %>% 
+    map(funs) %>% purrr::reduce(inner_join, by = "gene_id")
+
+  #gene metadata
+  gene_metadata <- dge.list$TA$genes[,1:3]
+  #merge statistics data
+  data.list <- list(gene_metadata,deseq.sedrw,deseq.zt,deseq.gender)
+  combined <- data.list %>% purrr::reduce(left_join, by = "gene_id") 
+  
+  pvals_sedvsrw_deseq2 <- combined[,c(str_c("pvalue_",tissue,"F_SedvsF_RW_deseq2"),str_c("pvalue_",tissue,"M_SedvsM_RW_deseq2"))] 
+  pvals_sedvsrw_deseq2[is.na(pvals_sedvsrw_deseq2)] <- 1
+  combined['combined_pvals_sedvsrw_deseq2'] <- apply(pvals_sedvsrw_deseq2, 1, function(x){sumlog(x)$p})
+      combined['adj.combined_pvals_sedvsrw_deseq2'] <- p.adjust(combined$combined_pvals_sedvsrw_deseq2, method = "BH")
+  
+  pvals_4_sedvsrw_deseq2 <- combined[,c(str_c("pvalue_",tissue,"M_4_SedvsM_4_RW_deseq2"),str_c("pvalue_",tissue,"F_4_SedvsF_4_RW_deseq2"))]
+  pvals_4_sedvsrw_deseq2[is.na(pvals_4_sedvsrw_deseq2)] <- 1
+  combined['combined_pvals_ZT4_sedvsrw_deseq2'] <- apply(pvals_4_sedvsrw_deseq2, 1, function(x){sumlog(x)$p})
+      combined['adj.combined_pvals_ZT4_sedvsrw_deseq2'] <- p.adjust(combined$combined_pvals_ZT4_sedvsrw_deseq2, method = "BH")
+  
+  pvals_16_sedvsrw_deseq2 <- combined[,c(str_c("pvalue_",tissue,"M_16_SedvsM_16_RW_deseq2"),str_c("pvalue_",tissue,"F_16_SedvsF_16_RW_deseq2"))]
+  pvals_16_sedvsrw_deseq2[is.na(pvals_16_sedvsrw_deseq2)] <- 1
+  combined['combined_pvals_ZT16_sedvsrw_deseq2'] <- apply(pvals_16_sedvsrw_deseq2, 1, function(x){sumlog(x)$p})
+      combined['adj.combined_pvals_ZT16_sedvsrw_deseq2'] <- p.adjust(combined$combined_pvals_ZT16_sedvsrw_deseq2, method = "BH")
+
+  #count and expr
+  count=allcount[,as.factor(str_split(colnames(allcount), "_", simplify = TRUE)[,1]) %in% tissue]
+  expr.sep=expr[,as.factor(str_split(colnames(expr), "_", simplify = TRUE)[,1]) %in% tissue]
+  count = as.data.frame(count) %>% rownames_to_column(var = "gene_id")
+  expr.sep = as.data.frame(expr.sep) %>% rownames_to_column(var = "gene_id")
+
+  #last merge
+  combined.table <- inner_join(combined,count,by = "gene_id") %>% inner_join(.,expr.sep,by = "gene_id") 
+
+  print(tissue)
+  write.xlsx(combined.table,file = str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+}
+
+walk(names(dge.list),combinealldata)
+```
+#count the deg numebr 
+```{r}
+my_function <- function(tissue){
+  df <- read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  subset.df <- df[ , c(str_c("sig_",tissue,"M_SedvsM_RW_deseq2"),str_c("sig_",tissue,"F_SedvsF_RW_deseq2"),str_c("sig_",tissue,"ZT4_SedvsZT16_Sed_deseq2"),str_c("sig_",tissue,"ZT4_RWvsZT16_RW_deseq2"),str_c("sig_",tissue,"F_SedvsM_Sed_deseq2"),str_c("sig_",tissue,"F_RWvsM_RW_deseq2"))] 
+  colnames(subset.df) <- c("M_SedvsM_RW","F_SedvsF_RW","ZT4_SedvsZT16_Sed","ZT4_RWvsZT16_RW","F_SedvsM_Sed","F_RWvsM_RW")
+  up.df <- sapply(subset.df, function(column) sum(column == "up",na.rm = TRUE))
+  up.df
+}
+up.df <- map(names(dge.list),my_function) %>% bind_rows
+rownames(up.df) <- names(dge.list)
+colnames(up.df) <- str_c(cols,"_up")
+
+my_function <- function(tissue){
+  df <- read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  subset.df <- df[ , c(str_c("sig_",tissue,"M_SedvsM_RW_deseq2"),str_c("sig_",tissue,"F_SedvsF_RW_deseq2"),str_c("sig_",tissue,"ZT4_SedvsZT16_Sed_deseq2"),str_c("sig_",tissue,"ZT4_RWvsZT16_RW_deseq2"),str_c("sig_",tissue,"F_SedvsM_Sed_deseq2"),str_c("sig_",tissue,"F_RWvsM_RW_deseq2"))] 
+  colnames(subset.df) <- c("M_SedvsM_RW","F_SedvsF_RW","ZT4_SedvsZT16_Sed","ZT4_RWvsZT16_RW","F_SedvsM_Sed","F_RWvsM_RW")
+  up.df <- sapply(subset.df, function(column) sum(column == "down",na.rm = TRUE))
+  up.df
+}
+down.df <- map(names(dge.list),my_function) %>% bind_rows
+rownames(down.df) <- names(dge.list)
+colnames(down.df) <- str_c(cols,"_down")
+
+all.df <- cbind(up.df,down.df)
+all.df <- all.df[,c(1,7,2,8,3,9,4,10,5,11,6,12)]
+rownames(all.df) <- names(dge.list)
+write.csv(all.df,file="/data/msun/projects/pandas/geraldine/02_DEG/countDEG.csv")
+
+#culmulative /exclusive table 
+final_numbers <- list()
+compare.list <- c("M_SedvsM_RW","F_SedvsF_RW","ZT4_SedvsZT16_Sed","ZT4_RWvsZT16_RW","F_SedvsM_Sed","F_RWvsM_RW")
+for (com in compare.list) {
+  alldf <- map(names(dge.list), function(x){
+    df <- read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",x,".xlsx"))
+    col_name <- str_c("sig_",x,com,"_deseq2")
+    df %>% select(col_name)
+  }) %>% bind_cols
+  
+  #cumulative/unique numbers
+  cum_up <-  sum(apply(alldf, 1, function(row) sum(row == "up",na.rm = TRUE) > 0))
+  cum_down <-  sum(apply(alldf, 1, function(row) sum(row == "down",na.rm = TRUE) > 0))
+  cum_all <- sum(apply(alldf, 1, function(row) sum(row %in% c("up", "down"),na.rm = TRUE) > 0))
+  
+final_numbers[[com]] <- c(cum_up,cum_down,cum_all)
+print(com)
+  }
+
+```
+
+#count the deg numebr of each biotype
+```{r}
+#genes affaected by exercisse
+my_function <- function(tissue){
+  df <- read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  subset.df <- df[ , str_c("sig_",tissue,"SedvsRW_deseq2")] 
+}
+all.df <- map(names(dge.list),my_function) %>% bind_cols
+gene.affectedbyexercise <- all.df %>%
+   rowwise() %>%
+  mutate(affected = if_else(any(c_across(everything()) %in% c("up", "down")), "yes", "no")) %>%
+  ungroup()
+gene.affectedbyexercise$gene_id=dge.list$Adrenal$genes$gene_id
+gene.abe <- gene.affectedbyexercise[gene.affectedbyexercise$affected=="yes",c("gene_id","affected")] 
+biotype.deg <- dge.list$Adrenal$genes[dge.list$Adrenal$genes$gene_id %in% gene.abe$gene_id,c(1:4)] %>%
+    group_by(gene_biotype) %>%
+  summarise(affected_by_rw_in_all_genes = n())
+write.csv(biotype.deg,file="/data/msun/projects/pandas/geraldine/02_DEG/deginrw.countbybiotype.csv")
+
+#the biotype percentage of shared-expressed gene in 22 tissues 
+dge.list$epididWAT$counts <- dge.list$epididWAT$counts[,!colnames(dge.list$epididWAT$counts) %in% c("epididWAT_F_Sed_ZT4_S201")] 
+dge.list$Pituitary$counts <- dge.list$Pituitary$counts[,!colnames(dge.list$Pituitary$counts) %in% c("Pituitary_M_Sed_ZT4_S429")]
+dge.list$epididWAT$samples <- dge.list$epididWAT$samples[!rownames(dge.list$epididWAT$samples) %in% c("epididWAT_F_Sed_ZT4_S201"),]
+dge.list$Pituitary$samples <- dge.list$Pituitary$samples[!rownames(dge.list$Pituitary$samples) %in% c("Pituitary_M_Sed_ZT4_S429"),]
+dge.list <- dge.list[-c(4,5)]
+expr.list <- dge.list %>% map( ~ edgeR::cpm(.,log=TRUE))
+#cpm>0.4 are considered expressed
+#if this gene is expressed in more than 3 samples in this tissue, then we will keep this
+gene_ineachtissue <- map(expr.list, ~ as.data.frame(rowSums(.x>0.4) >= 3 )) %>% purrr::reduce(cbind)
+genename_uni <- gene_ineachtissue[apply(gene_ineachtissue, 1, all), ] %>% rownames
+genename_uni_bio <- dge.list$Adrenal$genes[dge.list$Adrenal$genes$gene_id %in% genename_uni,c(1:4)]
+DEG_uni_biotye <- genename_uni_bio[genename_uni_bio$gene_id %in% gene.abe$gene_id,] %>%
+  group_by(gene_biotype) %>%
+  summarise(affected_by_rw_in_ubi_genes = n())
+write.csv(DEG_uni_biotye,file="/data/msun/projects/pandas/geraldine/02_DEG/deginrw.ubi.countbybiotype.csv")
+
+```

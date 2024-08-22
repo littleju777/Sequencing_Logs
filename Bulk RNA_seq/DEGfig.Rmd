@@ -1,0 +1,836 @@
+---
+title: "DEGfig"
+output: html_document
+---
+
+```{r}
+load("/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+library(stringr)
+library(tidyverse)
+library(ggpubr)
+library(ggthemes)
+library(edgeR)
+library(DESeq2)
+library(metap)
+library(ggstatsplot)
+library(ggplot2)
+library(future)
+plan(multisession, workers=24)
+options(future.globals.maxSize = 10000 * 1024^8)# 1G
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+col=c("#FB162E", "#1CFC0D" ,"#1C1CFD", "#FFD8DD" ,"#FB00DE" ,"#00C5F9","#F3E616" ,"#0D690D", "#960042","#6A3589" ,"#FD8C00", "#22FEDC" ,"#926200" ,"#2A6D78" ,"#C95AFB" ,"#FD92E0" ,"#ADF380","#8495FF"  ,"#653B45",  "#B5E2C0","#FF9C9B","#C6C2F8","#FC0094","#FD5F6C")
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24])
+
+
+#exclude smaple of cerebellum and cortex
+t.list <- names(expr.list)[!names(expr.list) %in% c("Cortex","Cerebel")]
+```
+
+#correlation plot
+```{r}
+ggcorrmat(
+  data = as.data.frame(expr), ## data from which variable is to be taken
+  cor.vars = Adrenal_F_RW_ZT4_S1:TATen_M_RW_ZT16_S575 ## specifying correlation matrix variables
+)
+
+tissue.mean <- expr.list %>% map(.,rowMeans) %>% purrr::reduce(cbind)
+colnames(tissue.mean) <- names(expr.list)
+ggcorrmat(
+  data = as.data.frame(tissue.mean), ## data from which variable is to be taken
+  cor.vars = Adrenal:TATen ## specifying correlation matrix variables
+)
+```
+
+#FIG 2 sed vs rw
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=str_c("p_",tissue)
+  pvalues[which(pvalues < 0.05),str_c(tissue,"_sig")] <- 'Yes'
+  pvalues[which(pvalues >= 0.05),str_c(tissue,"_sig")] <- 'No'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+replicate <- function(tissue){
+  num <- lapply(t.list, function(x){
+    df=number[,colnames(number) %in% c(str_c(tissue,"_sig"),str_c(x,"_sig"))]
+    if(tissue == x){
+    df1=as.data.frame(df[df=="Yes"])
+} else {
+    df1=df[which(df[,1] == "Yes" & df[,2] == "Yes"),]
+}
+    length(rownames(df1))})
+  unlist(num)
+} 
+
+numdf <- map(t.list,replicate) %>% purrr::reduce(rbind)
+rownames(numdf) <- t.list
+colnames(numdf) <- t.list
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+numdf=numdf[new_order,new_order]
+
+library(pheatmap)
+pheatmap(numdf,
+         cellheight = 20,cellwidth = 20,
+         cluster_cols = FALSE, cluster_rows = FALSE, 
+        show_colnames = T, show_rownames = T,
+        angle_col = 45, display_numbers = round(numdf,0),
+        color = colorRampPalette(colors = c("white","red","black"))(200),
+        border_color = "grey60")
+write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.sedrw.csv")
+#10*10 inch
+```
+
+#FIG 3A female 
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("padj_",tissue,"F_SedvsF_RW_deseq2"))])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=str_c("p_",tissue)
+  pvalues[is.na(pvalues)] <- 1
+  pvalues[which(pvalues < 0.05),str_c(tissue,"_sig")] <- 'Yes'
+  pvalues[which(pvalues >= 0.05),str_c(tissue,"_sig")] <- 'No'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+replicate <- function(tissue){
+  num <- lapply(t.list, function(x){
+    df=number[,colnames(number) %in% c(str_c(tissue,"_sig"),str_c(x,"_sig"))]
+    if(tissue == x){
+    df1=as.data.frame(df[df=="Yes"])
+} else {
+    df1=df[which(df[,1] == "Yes" & df[,2] == "Yes"),]
+}
+    length(rownames(df1))})
+  unlist(num)
+} 
+
+numdf <- map(t.list,replicate) %>% purrr::reduce(rbind)
+rownames(numdf) <- t.list
+colnames(numdf) <- t.list
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+numdf=numdf[new_order,new_order]
+
+library(pheatmap)
+pheatmap(numdf,
+         cellheight = 20,cellwidth = 20,
+         cluster_cols = FALSE, cluster_rows = FALSE, 
+        show_colnames = T, show_rownames = T,
+        angle_col = 45, display_numbers = round(numdf,0),
+        color = colorRampPalette(colors = c("white","red","black"))(200),
+        border_color = "grey60")
+
+write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.fsedrw.csv")
+#10*10 inch
+```
+#FIG 3A male 
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("padj_",tissue,"M_SedvsM_RW_deseq2"))])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=str_c("p_",tissue)
+  pvalues[is.na(pvalues)] <- 1
+  pvalues[which(pvalues < 0.05),str_c(tissue,"_sig")] <- 'Yes'
+  pvalues[which(pvalues >= 0.05),str_c(tissue,"_sig")] <- 'No'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+replicate <- function(tissue){
+  num <- lapply(t.list, function(x){
+    df=number[,colnames(number) %in% c(str_c(tissue,"_sig"),str_c(x,"_sig"))]
+    if(tissue == x){
+    df1=as.data.frame(df[df=="Yes"])
+} else {
+    df1=df[which(df[,1] == "Yes" & df[,2] == "Yes"),]
+}
+    length(rownames(df1))})
+  unlist(num)
+} 
+
+numdf <- map(t.list,replicate) %>% purrr::reduce(rbind)
+rownames(numdf) <- t.list
+colnames(numdf) <- t.list
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+numdf=numdf[new_order,new_order]
+
+library(pheatmap)
+pheatmap(numdf,
+         cellheight = 20,cellwidth = 20,
+         cluster_cols = FALSE, cluster_rows = FALSE, 
+        show_colnames = T, show_rownames = T,
+        angle_col = 45, display_numbers = round(numdf,0),
+        color = colorRampPalette(colors = c("white","red","black"))(200),
+        border_color = "grey60")
+
+write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.msedrw.csv")
+#10*10 inch
+```
+
+#FIG 4A ZT16
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_ZT16_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=str_c("p_",tissue)
+  pvalues[which(pvalues < 0.05),str_c(tissue,"_sig")] <- 'Yes'
+  pvalues[which(pvalues >= 0.05),str_c(tissue,"_sig")] <- 'No'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+replicate <- function(tissue){
+  num <- lapply(t.list, function(x){
+    df=number[,colnames(number) %in% c(str_c(tissue,"_sig"),str_c(x,"_sig"))]
+    if(tissue == x){
+    df1=as.data.frame(df[df=="Yes"])
+} else {
+    df1=df[which(df[,1] == "Yes" & df[,2] == "Yes"),]
+}
+    length(rownames(df1))})
+  unlist(num)
+} 
+
+numdf <- map(t.list,replicate) %>% purrr::reduce(rbind)
+rownames(numdf) <- t.list
+colnames(numdf) <- t.list
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+numdf=numdf[new_order,new_order]
+
+library(pheatmap)
+pheatmap(numdf,
+         cellheight = 20,cellwidth = 20,
+         cluster_cols = FALSE, cluster_rows = FALSE, 
+        show_colnames = T, show_rownames = T,
+        angle_col = 45, display_numbers = round(numdf,0),
+        color = colorRampPalette(colors = c("white","red","black"))(200),
+        border_color = "grey60")
+
+write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.zt16sedrw.csv")
+#10*10 inch
+```
+#FIG 4A ZT4
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_ZT4_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=str_c("p_",tissue)
+  pvalues[which(pvalues < 0.05),str_c(tissue,"_sig")] <- 'Yes'
+  pvalues[which(pvalues >= 0.05),str_c(tissue,"_sig")] <- 'No'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+replicate <- function(tissue){
+  num <- lapply(t.list, function(x){
+    df=number[,colnames(number) %in% c(str_c(tissue,"_sig"),str_c(x,"_sig"))]
+    if(tissue == x){
+    df1=as.data.frame(df[df=="Yes"])
+} else {
+    df1=df[which(df[,1] == "Yes" & df[,2] == "Yes"),]
+}
+    length(rownames(df1))})
+  unlist(num)
+} 
+
+numdf <- map(t.list,replicate) %>% purrr::reduce(rbind)
+rownames(numdf) <- t.list
+colnames(numdf) <- t.list
+new_order=c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")
+numdf=numdf[new_order,new_order]
+
+library(pheatmap)
+pheatmap(numdf,
+         cellheight = 20,cellwidth = 20,
+         cluster_cols = FALSE, cluster_rows = FALSE, 
+        show_colnames = T, show_rownames = T,
+        angle_col = 45, display_numbers = round(numdf,0),
+        color = colorRampPalette(colors = c("white","red","black"))(200),
+        border_color = "grey60")
+write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.zt4sedrw.csv")
+#10*10 inch
+```
+
+#generate data frame for fig2BC 
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"SedvsRW_deseq2"),"adj.combined_pvals_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
+  pvalues[is.na(pvalues[,1]),1] <- 0
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] > 0),str_c(tissue,"_sig")] <- 'Up'
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] < 0),str_c(tissue,"_sig")] <- 'Down'
+  pvalues[which(pvalues[,2] >= 0.05),str_c(tissue,"_sig")] <- 'None'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+```
+
+#fig 2b c
+```{r}
+#customize color
+library(Polychrome)
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24]) 
+
+#all number 
+sigdf <- number[,colnames(number) %in% str_c(t.list,"_sig")]
+sigdf <- sigdf[,str_c(new_order,"_sig")]
+sigcount <- apply(sigdf,2,function(x){count(x %in% c("Up","Down"))}) %>% as.data.frame(.) 
+colnames(sigcount) <- "sig_num"
+sigcount$tissue <- substr(rownames(sigcount),1,nchar(rownames(sigcount))-4)
+sigcount <- sigcount[str_c(new_order,"_sig"),]
+#unique number 
+library(dplyr)
+library(tidyr)
+unilist <- sigdf %>% rownames_to_column(.,var = "gene") %>% 
+    pivot_longer(cols = -gene) %>% 
+    filter(value %in% c("Up","Down")) %>% 
+    split(.$name, .$gene) %>%
+    .[str_c(new_order,"_sig")] %>%
+    map(function(x) x$gene)
+unicount <- c()
+for (i in 1:22){
+  unicount[i] <- length(unique(unlist(unilist[c(seq(1,i,1))])))
+}
+#caculate percent
+sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
+  mutate(uni=unicount) %>% 
+  mutate(per=uni/25859)#sum(sigcount$sig_num)
+ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
+df <- transform(sigcount, uniScaled = per * ratio)
+write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.sedrw.csv")
+#Fig2B
+ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
+  scale_fill_manual(values = cols)+
+  geom_bar(stat = 'identity') + 
+  theme_bw()+ xlab("Tissue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  geom_text(aes(label=sig_num),position = position_dodge(0.9),vjust=-0.5) +
+  geom_line(aes(x=tissue, y=uniScaled,group=1)) +
+  scale_y_continuous(name = "DE genes count",
+                     sec.axis = sec_axis(~./ratio,name="Cumulative frequency",labels = scales::label_percent()))
+#5.5 11.5
+
+#fig2b up and down
+upcount <- apply(sigdf,2,function(x){count(x %in% c("Up"))}) %>% as.data.frame(.) 
+downcount <- apply(sigdf,2,function(x){count(x %in% c("Down"))}) %>% as.data.frame(.)
+count <- cbind(upcount,downcount)
+colnames(count) <- c("upnum","downnum")
+count$tissue <- substr(rownames(count),1,nchar(rownames(count))-4) 
+df <- count %>% gather(.,category,count,upnum,downnum)
+df$tissue <- factor(df$tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen"))
+ggpubr::ggbarplot(df, x="tissue", y="count",
+  fill = "category", color = "category", palette = c("#00AFBB","#FC4E07")) +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+#fig 2c
+df <- number %>% select(ends_with("sig")) 
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Up")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p1 <- ggbarplot(num,x="tissues",y="num",fill = "#FC4E07",color = "#FC4E07") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Down")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p2 <- ggbarplot(num,x="tissues",y="num",fill = "#00AFBB",color = "#00AFBB") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+library(gridExtra)
+grid.arrange(p1, p2, nrow = 2)
+#6*6 inch
+
+#make dataframe for fig2D,E
+colnames(df) <- substr(colnames(df),1,nchar(colnames(df))-4)
+data1 <- df[which(rowSums(df=="Up")>=5),]
+replace_by_string <- function(x, st) {
+  case_when(x %in% c("None","Down") ~ "",
+            x == "Up" ~ st)
+} 
+data2 <- data.frame(lapply(data1, replace_by_string, rownames(data1)))
+write.csv(data2,file = "/data/msun/projects/pandas/geraldine/02_DEG/upmore5tissue.csv")
+
+data3 <- df[which(rowSums(df=="Down")>=5),]
+replace_by_string <- function(x, st) {
+  case_when(x %in% c("None","Up") ~ "",
+            x == "Down" ~ st)
+} 
+data4 <- data.frame(lapply(data3, replace_by_string, rownames(data3)))
+write.csv(data4,file = "/data/msun/projects/pandas/geraldine/02_DEG/downmore5tissue.csv")
+
+data <- df[,colnames(df) %in% c("BF","ST","SM","TA","EDL","Gas","Sol","Quad")]
+write.csv(data,file = "/data/msun/projects/pandas/geraldine/02_DEG/muscles_sedrw.csv")
+```
+
+#generate data frame for fig3BC female
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"F_SedvsF_RW_deseq2"),str_c("padj_",tissue,"F_SedvsF_RW_deseq2"))])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
+  pvalues[is.na(pvalues[,1]),1] <- 0
+  pvalues[is.na(pvalues[,2]),2] <- 1
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] > 0),str_c(tissue,"_sig")] <- 'Up'
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] < 0),str_c(tissue,"_sig")] <- 'Down'
+  pvalues[which(pvalues[,2] >= 0.05),str_c(tissue,"_sig")] <- 'None'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+```
+
+#fig 3 b c female
+```{r}
+#customize color
+library(Polychrome)
+col = as.character(createPalette(24,  c("#ff0000", "#00ff00", "#0000ff")))
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24]) 
+
+#all number 
+sigdf <- number[,colnames(number) %in% str_c(t.list,"_sig")]
+sigdf <- sigdf[,str_c(new_order,"_sig")]
+sigcount <- apply(sigdf,2,function(x){count(x %in% c("Up","Down"))}) %>% as.data.frame(.) 
+colnames(sigcount) <- "sig_num"
+sigcount$tissue <- substr(rownames(sigcount),1,nchar(rownames(sigcount))-4)
+sigcount <- sigcount[str_c(new_order,"_sig"),]
+#unique number 
+library(dplyr)
+library(tidyr)
+unilist <- sigdf %>% rownames_to_column(.,var = "gene") %>% 
+    pivot_longer(cols = -gene) %>% 
+    filter(value %in% c("Up","Down")) %>% 
+    split(.$name, .$gene) %>%
+    .[str_c(new_order,"_sig")] %>%
+    map(function(x) x$gene)
+unicount <- c()
+for (i in 1:22){
+  unicount[i] <- length(unique(unlist(unilist[c(seq(1,i,1))])))
+}
+#caculate percent
+sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
+  mutate(uni=unicount) %>% 
+  mutate(per=uni/25859)#sum(sigcount$sig_num)
+ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
+df <- transform(sigcount, uniScaled = per * ratio)
+write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.fsedrw.csv")
+#Fig2B
+ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
+  scale_fill_manual(values = cols)+
+  geom_bar(stat = 'identity') + 
+  theme_bw()+ xlab("Tissue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  geom_text(aes(label=sig_num),position = position_dodge(0.9),vjust=-0.5) +
+  geom_line(aes(x=tissue, y=uniScaled,group=1)) +
+  scale_y_continuous(name = "DE genes count",
+                     sec.axis = sec_axis(~./ratio,name="Cumulative frequency",labels = scales::label_percent()))
+#size 5.5*11.5
+
+#fig2b up and down
+upcount <- apply(sigdf,2,function(x){count(x %in% c("Up"))}) %>% as.data.frame(.) 
+downcount <- apply(sigdf,2,function(x){count(x %in% c("Down"))}) %>% as.data.frame(.)
+count <- cbind(upcount,downcount)
+colnames(count) <- c("upnum","downnum")
+count$tissue <- substr(rownames(count),1,nchar(rownames(count))-4) 
+df <- count %>% gather(.,category,count,upnum,downnum)
+df$tissue <- factor(df$tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen"))
+ggpubr::ggbarplot(df, x="tissue", y="count",
+  fill = "category", color = "category", palette = c("#00AFBB","#FC4E07")) +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+# size 5*8.5
+
+#fig 2c
+df <- number %>% select(ends_with("sig")) 
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Up")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p1 <- ggbarplot(num,x="tissues",y="num",fill = "#FC4E07",color = "#FC4E07") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Down")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p2 <- ggbarplot(num,x="tissues",y="num",fill = "#00AFBB",color = "#00AFBB") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+library(gridExtra)
+grid.arrange(p1, p2, nrow = 2)
+# size 7,6
+```
+
+#generate data frame for fig3BC male
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"M_SedvsM_RW_deseq2"),str_c("padj_",tissue,"M_SedvsM_RW_deseq2"))])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
+  pvalues[is.na(pvalues[,1]),1] <- 0
+  pvalues[is.na(pvalues[,2]),2] <- 1
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] > 0),str_c(tissue,"_sig")] <- 'Up'
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] < 0),str_c(tissue,"_sig")] <- 'Down'
+  pvalues[which(pvalues[,2] >= 0.05),str_c(tissue,"_sig")] <- 'None'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+
+```
+
+#fig 3 b c male
+```{r}
+#customize color
+library(Polychrome)
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"Cerebel"=col[12],"Cortex"=col[13],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24]) 
+
+sigdf <- number[,colnames(number) %in% str_c(t.list,"_sig")]
+sigdf <- sigdf[,str_c(new_order,"_sig")]
+sigcount <- apply(sigdf,2,function(x){count(x %in% c("Up","Down"))}) %>% as.data.frame(.) 
+colnames(sigcount) <- "sig_num"
+sigcount$tissue <- substr(rownames(sigcount),1,nchar(rownames(sigcount))-4)
+sigcount <- sigcount[str_c(new_order,"_sig"),]
+#unique number 
+library(dplyr)
+library(tidyr)
+unilist <- sigdf %>% rownames_to_column(.,var = "gene") %>% 
+    pivot_longer(cols = -gene) %>% 
+    filter(value %in% c("Up","Down")) %>% 
+    split(.$name, .$gene) %>%
+    .[str_c(new_order,"_sig")] %>%
+    map(function(x) x$gene)
+unicount <- c()
+for (i in 1:22){
+  unicount[i] <- length(unique(unlist(unilist[c(seq(1,i,1))])))
+}
+#caculate percent
+sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
+  mutate(uni=unicount) %>% 
+  mutate(per=uni/25859)#sum(sigcount$sig_num)
+ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
+df <- transform(sigcount, uniScaled = per * ratio)
+write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.msedrw.csv")
+#Fig2B
+ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
+  scale_fill_manual(values = cols)+
+  geom_bar(stat = 'identity') + 
+  theme_bw()+ xlab("Tissue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  geom_text(aes(label=sig_num),position = position_dodge(0.9),vjust=-0.5) +
+  geom_line(aes(x=tissue, y=uniScaled,group=1)) +
+  scale_y_continuous(name = "DE genes count",
+                     sec.axis = sec_axis(~./ratio,name="Cumulative frequency",labels = scales::label_percent()))
+#size 5.5*11.5
+
+#fig2b up and down
+upcount <- apply(sigdf,2,function(x){count(x %in% c("Up"))}) %>% as.data.frame(.) 
+downcount <- apply(sigdf,2,function(x){count(x %in% c("Down"))}) %>% as.data.frame(.)
+count <- cbind(upcount,downcount)
+colnames(count) <- c("upnum","downnum")
+count$tissue <- substr(rownames(count),1,nchar(rownames(count))-4) 
+df <- count %>% gather(.,category,count,upnum,downnum)
+df$tissue <- factor(df$tissue,levels = c("Cerebel","Cortex","Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen"))
+ggpubr::ggbarplot(df, x="tissue", y="count",
+  fill = "category", color = "category", palette = c("#00AFBB","#FC4E07")) +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+# size 5*8.5
+
+#fig 2c
+df <- number %>% select(ends_with("sig")) 
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Up")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p1 <- ggbarplot(num,x="tissues",y="num",fill = "#FC4E07",color = "#FC4E07") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Down")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p2 <- ggbarplot(num,x="tissues",y="num",fill = "#00AFBB",color = "#00AFBB") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+library(gridExtra)
+grid.arrange(p1, p2, nrow = 2)
+# size 7,6
+```
+
+#generate data frame for fig4BC zt4
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"ZT4_SedvsZT4_RW_deseq2"),"adj.combined_pvals_ZT4_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
+  pvalues[is.na(pvalues[,1]),1] <- 0
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] > 0),str_c(tissue,"_sig")] <- 'Up'
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] < 0),str_c(tissue,"_sig")] <- 'Down'
+  pvalues[which(pvalues[,2] >= 0.05),str_c(tissue,"_sig")] <- 'None'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+```
+
+#fig 4b c zt4
+```{r}
+#customize color
+library(Polychrome)
+col = as.character(createPalette(24,  c("#ff0000", "#00ff00", "#0000ff")))
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"Cerebel"=col[12],"Cortex"=col[13],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24]) 
+
+#all number 
+sigdf <- number[,colnames(number) %in% str_c(t.list,"_sig")]
+sigdf <- sigdf[,str_c(new_order,"_sig")]
+sigcount <- apply(sigdf,2,function(x){count(x %in% c("Up","Down"))}) %>% as.data.frame(.) 
+colnames(sigcount) <- "sig_num"
+sigcount$tissue <- substr(rownames(sigcount),1,nchar(rownames(sigcount))-4)
+sigcount <- sigcount[str_c(new_order,"_sig"),]
+#unique number 
+library(dplyr)
+library(tidyr)
+unilist <- sigdf %>% rownames_to_column(.,var = "gene") %>% 
+    pivot_longer(cols = -gene) %>% 
+    filter(value %in% c("Up","Down")) %>% 
+    split(.$name, .$gene) %>%
+    .[str_c(new_order,"_sig")] %>%
+    map(function(x) x$gene)
+unicount <- c()
+for (i in 1:22){
+  unicount[i] <- length(unique(unlist(unilist[c(seq(1,i,1))])))
+}
+#caculate percent
+sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
+  mutate(uni=unicount) %>% 
+  mutate(per=uni/25859)#sum(sigcount$sig_num)
+ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
+df <- transform(sigcount, uniScaled = per * ratio)
+write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.zt4sedrw.csv")
+#Fig2B
+ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
+  scale_fill_manual(values = cols)+
+  geom_bar(stat = 'identity') + 
+  theme_bw()+ xlab("Tissue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  geom_text(aes(label=sig_num),position = position_dodge(0.9),vjust=-0.5) +
+  geom_line(aes(x=tissue, y=uniScaled,group=1)) +
+  scale_y_continuous(name = "DE genes count",
+                     sec.axis = sec_axis(~./ratio,name="Cumulative frequency",labels = scales::label_percent()))
+ #size 5.5*11.5 
+
+#fig2b up and down
+upcount <- apply(sigdf,2,function(x){count(x %in% c("Up"))}) %>% as.data.frame(.) 
+downcount <- apply(sigdf,2,function(x){count(x %in% c("Down"))}) %>% as.data.frame(.)
+count <- cbind(upcount,downcount)
+colnames(count) <- c("upnum","downnum")
+count$tissue <- substr(rownames(count),1,nchar(rownames(count))-4) 
+df <- count %>% gather(.,category,count,upnum,downnum)
+df$tissue <- factor(df$tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen"))
+ggpubr::ggbarplot(df, x="tissue", y="count",
+  fill = "category", color = "category", palette = c("#00AFBB","#FC4E07")) +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+# size 5*8.5
+
+#fig 2c
+df <- number %>% select(ends_with("sig")) 
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Up")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p1 <- ggbarplot(num,x="tissues",y="num",fill = "#FC4E07",color = "#FC4E07") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Down")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p2 <- ggbarplot(num,x="tissues",y="num",fill = "#00AFBB",color = "#00AFBB") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+library(gridExtra)
+grid.arrange(p1, p2, nrow = 2)
+#size 7*6
+```
+
+#generate data frame for fig4BC zt16
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"ZT16_SedvsZT16_RW_deseq2"),"adj.combined_pvals_ZT16_sedvsrw_deseq2")])
+  rownames(pvalues)=alldf$gene_id
+  colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
+  pvalues[is.na(pvalues[,1]),1] <- 0
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] > 0),str_c(tissue,"_sig")] <- 'Up'
+  pvalues[which(pvalues[,2] < 0.05 & pvalues[,1] < 0),str_c(tissue,"_sig")] <- 'Down'
+  pvalues[which(pvalues[,2] >= 0.05),str_c(tissue,"_sig")] <- 'None'
+  pvalues=na.omit(pvalues)
+  pvalues
+}
+number <- map(t.list,myfun) %>% purrr::reduce(cbind)
+```
+
+#fig 4b c zt16
+```{r}
+#customize color
+library(Polychrome)
+col = as.character(createPalette(24,  c("#ff0000", "#00ff00", "#0000ff")))
+cols=c("BF"=col[1],"ST"=col[2],"SM"=col[3],"TA"=col[4],"EDL"=col[5],"Gas"=col[6],"Sol"=col[7],"Quad"=col[8],"Dia"=col[9],"Adrenal"=col[10],"BrownAdip"=col[11],"Cerebel"=col[12],"Cortex"=col[13],"epididWAT"=col[14],"Hypothal"=col[15],"inguinWAT"=col[16],"Pituitary"=col[17],"Heart"=col[18],"Kid"=col[19],"Liver"=col[20],"Lung"=col[21],"GasTen"=col[22],"TATen"=col[23], "EDLTen"=col[24]) 
+
+#all number 
+sigdf <- number[,colnames(number) %in% str_c(t.list,"_sig")]
+sigdf <- sigdf[,str_c(new_order,"_sig")]
+sigcount <- apply(sigdf,2,function(x){count(x %in% c("Up","Down"))}) %>% as.data.frame(.) 
+colnames(sigcount) <- "sig_num"
+sigcount$tissue <- substr(rownames(sigcount),1,nchar(rownames(sigcount))-4)
+sigcount <- sigcount[str_c(new_order,"_sig"),]
+#unique number 
+library(dplyr)
+library(tidyr)
+unilist <- sigdf %>% rownames_to_column(.,var = "gene") %>% 
+    pivot_longer(cols = -gene) %>% 
+    filter(value %in% c("Up","Down")) %>% 
+    split(.$name, .$gene) %>%
+    .[str_c(new_order,"_sig")] %>%
+    map(function(x) x$gene)
+unicount <- c()
+for (i in 1:22){
+  unicount[i] <- length(unique(unlist(unilist[c(seq(1,i,1))])))
+}
+#caculate percent
+sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
+  mutate(uni=unicount) %>% 
+  mutate(per=uni/25859)#sum(sigcount$sig_num)
+ratio <- max(sigcount$sig_num) / 0.7#max(sigcount$per)
+df <- transform(sigcount, uniScaled = per * ratio)
+write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.zt16sedrw.csv")
+#Fig2B
+ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
+  scale_fill_manual(values = cols)+
+  geom_bar(stat = 'identity') + 
+  theme_bw()+ xlab("Tissue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  geom_text(aes(label=sig_num),position = position_dodge(0.9),vjust=-0.5) +
+  geom_line(aes(x=tissue, y=uniScaled,group=1)) +
+  scale_y_continuous(name = "DE genes count",
+                     sec.axis = sec_axis(~./ratio,name="Cumulative frequency",labels = scales::label_percent()))
+ #size 5.5*11.5 
+
+#fig2b up and down
+upcount <- apply(sigdf,2,function(x){count(x %in% c("Up"))}) %>% as.data.frame(.) 
+downcount <- apply(sigdf,2,function(x){count(x %in% c("Down"))}) %>% as.data.frame(.)
+count <- cbind(upcount,downcount)
+colnames(count) <- c("upnum","downnum")
+count$tissue <- substr(rownames(count),1,nchar(rownames(count))-4) 
+df <- count %>% gather(.,category,count,upnum,downnum)
+df$tissue <- factor(df$tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen"))
+ggpubr::ggbarplot(df, x="tissue", y="count",
+  fill = "category", color = "category", palette = c("#00AFBB","#FC4E07")) +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+# size 5*8.5
+
+#fig 2c
+df <- number %>% select(ends_with("sig")) 
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Up")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p1 <- ggbarplot(num,x="tissues",y="num",fill = "#FC4E07",color = "#FC4E07") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+
+num <- c()
+for (i in 1:13){
+  num[i]=nrow(df[which(rowSums(df=="Down")==i),])
+}
+num <- as.data.frame(num)
+num$tissues <- as.factor(1:13)
+p2 <- ggbarplot(num,x="tissues",y="num",fill = "#00AFBB",color = "#00AFBB") +
+  scale_y_continuous(trans='log10') +
+  xlab("Number of genes") +
+  geom_text(aes(label=num),
+    position = position_dodge(0.9),hjust = -0.3) +
+  coord_flip()
+library(gridExtra)
+grid.arrange(p1, p2, nrow = 2)
+#size 7*6
+```

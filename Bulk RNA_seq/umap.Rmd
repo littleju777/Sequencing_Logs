@@ -1,0 +1,143 @@
+---
+title: "umap"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(future)
+library(uwot)
+library(dbscan)
+library(factoextra)
+plan(multisession, workers=24)
+set.seed(123)
+library(Polychrome)
+load("/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+```
+
+```{r}
+#reomve 2 samples and 2 tissues
+dge.list$epididWAT$counts <- dge.list$epididWAT$counts[,!colnames(dge.list$epididWAT$counts) %in% c("epididWAT_F_Sed_ZT4_S201")] 
+dge.list$Pituitary$counts <- dge.list$Pituitary$counts[,!colnames(dge.list$Pituitary$counts) %in% c("Pituitary_M_Sed_ZT4_S429")]
+dge.list$epididWAT$samples <- dge.list$epididWAT$samples[!rownames(dge.list$epididWAT$samples) %in% c("epididWAT_F_Sed_ZT4_S201"),]
+dge.list$Pituitary$samples <- dge.list$Pituitary$samples[!rownames(dge.list$Pituitary$samples) %in% c("Pituitary_M_Sed_ZT4_S429"),]
+
+dge.list <- dge.list[-c(4,5)]
+
+tmm <- dge.list %>% map(~ edgeR::cpm(.,log=TRUE)) %>% map(scale) %>% purrr::reduce(cbind)
+
+#a = 1.8956, b = 0.8006.  use this one
+set.seed(000)
+df <- uwot::umap(tmm, a = 1.8956, b = 0.8006, n_neighbors = 20,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=20) #eps 0.2
+db <- fpc::dbscan(df$embedding, eps = 0.2, MinPts = 100)
+col = as.character(createPalette(length(unique(db$cluster)),  c("#ff0000", "#00ff00", "#0000ff")))
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+
+
+#control spread and min_dist. #### use this one!#10*14
+df <- uwot::umap(tmm, spread=1,min_dist = 0.001 , n_neighbors = 20,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=20) #eps 0.2
+db <- fpc::dbscan(df$embedding, eps = 0.2, MinPts = 100)
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+cluster.df <- cbind(rownames(df$embedding),db$cluster)
+write.csv(cluster.df,file = "/data/msun/projects/pandas/geraldine/01_UMAP/clustergene.csv")
+
+#control spread and min_dist
+df <- uwot::umap(tmm, spread= 0.8,min_dist = 0.001 , n_neighbors = 20,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=20) #eps 0.15
+db <- fpc::dbscan(df$embedding, eps = 0.2, MinPts = 100)
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+
+
+#control spread and min_dist
+df <- uwot::umap(tmm, spread= 1.2,min_dist = 0.01 , n_neighbors = 20,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=20) #eps 0.2
+db <- fpc::dbscan(df$embedding, eps = 0.2, MinPts = 100)
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+
+
+#control spread and min_dist
+df <- uwot::umap(tmm, spread= 1.2,min_dist = 0.001 , n_neighbors = 20,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=20) #eps 0.2
+db <- fpc::dbscan(df$embedding, eps = 0.2, MinPts = 100)
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+
+
+
+df <- uwot::umap(tmm, a = 1.8956, b = 0.8006, n_neighbors = 15,metric = 'correlation',ret_model = T)
+kNNdistplot(as.matrix(df$embedding),k=15) #eps 0.15
+
+db <- fpc::dbscan(df$embedding, eps = 0.15, MinPts = 100)
+
+col = as.character(createPalette(length(unique(db$cluster)),  c("#ff0000", "#00ff00", "#0000ff")))
+fviz_cluster(db, as.data.frame(df$embedding), geom = "point",
+             ellipse= FALSE, show.clust.cent = FALSE,
+             ggtheme = theme_classic(),shape = 16) +
+  scale_colour_manual(values = c(col)) 
+
+```
+
+#draw with umap 
+```{r}
+library(openxlsx)
+myfun <- function(tissue){
+  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_sedvsrw_deseq2",str_c("log2FoldChange_",tissue,"SedvsRW_deseq2"))])
+  colnames(pvalues)=c("logfc","adjp")
+  rownames(pvalues)=alldf$gene_id
+  pvalues[which(pvalues$logfc >= 0 & pvalues$adjp < 0.05),"sig"] <- 'up'#up
+  pvalues[which(pvalues$logfc < 0 & pvalues$adjp < 0.05),"sig"] <- 'down'#down
+  pvalues[which(pvalues$adjp >= 0.05),"sig"] <- 'no'#none
+  data=merge(df$embedding,pvalues,by="row.names") %>% column_to_rownames(var = "Row.names") 
+  col = c("#00AFBB","#DCDCDC","#FC4E07")
+  p=ggplot(data = data, aes(x = V1, y = V2)) +
+    geom_point(size=0.7,alpha=0.4,aes(color = as.character(sig))) + 
+    theme_classic() + 
+    scale_colour_manual(values = c(col))+
+    ggtitle(tissue)
+  ggsave(filename = str_c("/data/msun/projects/pandas/geraldine/01_UMAP/",tissue,".pdf"),plot = p,width = 14,height = 10)
+  print(tissue)
+  colnames(pvalues)[3] <- str_c(tissue,"_sig")
+  pvalues[,3]
+}
+tissuelist=c("BF","ST","SM","TA","EDL","Gas","Sol","Quad","Dia","Adrenal","BrownAdip","epididWAT","Hypothal","inguinWAT","Pituitary","Heart","Kid","Liver","Lung","GasTen","TATen", "EDLTen")
+sigtable <- map(tissuelist,myfun) %>% purrr::reduce(cbind)
+alldf=read.xlsx("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/BF.xlsx")
+rownames(sigtable)=alldf$gene_id
+colnames(sigtable)=tissuelist
+cluster.df <- as.data.frame(cbind(rownames(df$embedding),db$cluster)) %>% column_to_rownames(var = "V1")
+colnames(cluster.df) <- "cluster"
+table <- merge(cluster.df,sigtable,by="row.names") %>% column_to_rownames(var = "Row.names") 
+write.csv(table,file = "/data/msun/projects/pandas/geraldine/01_UMAP/clustertable.csv")
+
+```
+
+#go analysis of every cluster 
+```{r}
+clustergene <- read.csv("/data/msun/projects/pandas/geraldine/01_UMAP/clustergene.csv")
+
+library(clusterProfiler)
+library(stringr)
+for (i in 0:34){
+  gene <- clustergene[clustergene$V2 == i,]$V1
+  go <- enrichGO(gene, 'org.Mm.eg.db',keyType = "ENSEMBL",ont = "ALL",minGSSize=0,maxGSSize = 5000)
+  write.csv(go,file = str_c("/data/msun/projects/pandas/geraldine/01_UMAP/umap_cluster_goanalysis/cluster",i,".csv"))
+    }
+
+```
