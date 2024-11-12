@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r}
-load("/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+load("/data/msun/projects/01_preprocess/preprocess_filtered.Rdata")
 library(stringr)
 library(tidyverse)
 library(ggpubr)
@@ -45,7 +45,7 @@ ggcorrmat(
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=str_c("p_",tissue)
@@ -82,7 +82,7 @@ pheatmap(numdf,
         angle_col = 45, display_numbers = round(numdf,0),
         color = colorRampPalette(colors = c("white","red","black"))(200),
         border_color = "grey60")
-write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.sedrw.csv")
+write.csv(numdf,file = "/data/msun/projects/02_DEG/fig/heat.sedrw.csv")
 #10*10 inch
 ```
 
@@ -90,7 +90,7 @@ write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.sed
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("padj_",tissue,"F_SedvsF_RW_deseq2"))])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=str_c("p_",tissue)
@@ -129,14 +129,14 @@ pheatmap(numdf,
         color = colorRampPalette(colors = c("white","red","black"))(200),
         border_color = "grey60")
 
-write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.fsedrw.csv")
+write.csv(numdf,file = "/data/msun/projects/02_DEG/fig/heat.fsedrw.csv")
 #10*10 inch
 ```
 #FIG 3A male 
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("padj_",tissue,"M_SedvsM_RW_deseq2"))])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=str_c("p_",tissue)
@@ -175,7 +175,7 @@ pheatmap(numdf,
         color = colorRampPalette(colors = c("white","red","black"))(200),
         border_color = "grey60")
 
-write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.msedrw.csv")
+write.csv(numdf,file = "/data/msun/projects/02_DEG/fig/heat.msedrw.csv")
 #10*10 inch
 ```
 
@@ -183,7 +183,7 @@ write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.mse
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_ZT16_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=str_c("p_",tissue)
@@ -221,14 +221,14 @@ pheatmap(numdf,
         color = colorRampPalette(colors = c("white","red","black"))(200),
         border_color = "grey60")
 
-write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.zt16sedrw.csv")
+write.csv(numdf,file = "/data/msun/projects/02_DEG/fig/heat.zt16sedrw.csv")
 #10*10 inch
 ```
 #FIG 4A ZT4
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c("adj.combined_pvals_ZT4_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=str_c("p_",tissue)
@@ -265,7 +265,7 @@ pheatmap(numdf,
         angle_col = 45, display_numbers = round(numdf,0),
         color = colorRampPalette(colors = c("white","red","black"))(200),
         border_color = "grey60")
-write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.zt4sedrw.csv")
+write.csv(numdf,file = "/data/msun/projects/02_DEG/fig/heat.zt4sedrw.csv")
 #10*10 inch
 ```
 
@@ -273,7 +273,7 @@ write.csv(numdf,file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/heat.zt4
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"SedvsRW_deseq2"),"adj.combined_pvals_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
@@ -319,7 +319,7 @@ sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
   mutate(per=uni/25859)#sum(sigcount$sig_num)
 ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
 df <- transform(sigcount, uniScaled = per * ratio)
-write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.sedrw.csv")
+write.csv(df, file = "/data/msun/projects/02_DEG/fig/bar.sedrw.csv")
 #Fig2B
 ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
   scale_fill_manual(values = cols)+
@@ -383,7 +383,7 @@ replace_by_string <- function(x, st) {
             x == "Up" ~ st)
 } 
 data2 <- data.frame(lapply(data1, replace_by_string, rownames(data1)))
-write.csv(data2,file = "/data/msun/projects/pandas/geraldine/02_DEG/upmore5tissue.csv")
+write.csv(data2,file = "/data/msun/projects/02_DEG/upmore5tissue.csv")
 
 data3 <- df[which(rowSums(df=="Down")>=5),]
 replace_by_string <- function(x, st) {
@@ -391,17 +391,17 @@ replace_by_string <- function(x, st) {
             x == "Down" ~ st)
 } 
 data4 <- data.frame(lapply(data3, replace_by_string, rownames(data3)))
-write.csv(data4,file = "/data/msun/projects/pandas/geraldine/02_DEG/downmore5tissue.csv")
+write.csv(data4,file = "/data/msun/projects/02_DEG/downmore5tissue.csv")
 
 data <- df[,colnames(df) %in% c("BF","ST","SM","TA","EDL","Gas","Sol","Quad")]
-write.csv(data,file = "/data/msun/projects/pandas/geraldine/02_DEG/muscles_sedrw.csv")
+write.csv(data,file = "/data/msun/projects/02_DEG/muscles_sedrw.csv")
 ```
 
 #generate data frame for fig3BC female
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"F_SedvsF_RW_deseq2"),str_c("padj_",tissue,"F_SedvsF_RW_deseq2"))])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
@@ -450,7 +450,7 @@ sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
   mutate(per=uni/25859)#sum(sigcount$sig_num)
 ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
 df <- transform(sigcount, uniScaled = per * ratio)
-write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.fsedrw.csv")
+write.csv(df, file = "/data/msun/projects/02_DEG/fig/bar.fsedrw.csv")
 #Fig2B
 ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
   scale_fill_manual(values = cols)+
@@ -512,7 +512,7 @@ grid.arrange(p1, p2, nrow = 2)
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"M_SedvsM_RW_deseq2"),str_c("padj_",tissue,"M_SedvsM_RW_deseq2"))])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
@@ -559,7 +559,7 @@ sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
   mutate(per=uni/25859)#sum(sigcount$sig_num)
 ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
 df <- transform(sigcount, uniScaled = per * ratio)
-write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.msedrw.csv")
+write.csv(df, file = "/data/msun/projects/02_DEG/fig/bar.msedrw.csv")
 #Fig2B
 ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
   scale_fill_manual(values = cols)+
@@ -621,7 +621,7 @@ grid.arrange(p1, p2, nrow = 2)
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"ZT4_SedvsZT4_RW_deseq2"),"adj.combined_pvals_ZT4_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
@@ -668,7 +668,7 @@ sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
   mutate(per=uni/25859)#sum(sigcount$sig_num)
 ratio <- max(sigcount$sig_num) / 0.6#max(sigcount$per)
 df <- transform(sigcount, uniScaled = per * ratio)
-write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.zt4sedrw.csv")
+write.csv(df, file = "/data/msun/projects/02_DEG/fig/bar.zt4sedrw.csv")
 #Fig2B
 ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
   scale_fill_manual(values = cols)+
@@ -730,7 +730,7 @@ grid.arrange(p1, p2, nrow = 2)
 ```{r}
 library(openxlsx)
 myfun <- function(tissue){
-  alldf=read.xlsx(str_c("/data/msun/projects/pandas/geraldine/02_DEG/combined_deseq/",tissue,".xlsx"))
+  alldf=read.xlsx(str_c("/data/msun/projects/02_DEG/combined_deseq/",tissue,".xlsx"))
   pvalues=as.data.frame(alldf[,colnames(alldf) %in% c(str_c("log2FoldChange_",tissue,"ZT16_SedvsZT16_RW_deseq2"),"adj.combined_pvals_ZT16_sedvsrw_deseq2")])
   rownames(pvalues)=alldf$gene_id
   colnames(pvalues)=c(str_c("fc_",tissue),str_c("p_",tissue))
@@ -777,7 +777,7 @@ sigcount=sigcount %>% mutate(Cum=cumsum(sig_num)) %>%
   mutate(per=uni/25859)#sum(sigcount$sig_num)
 ratio <- max(sigcount$sig_num) / 0.7#max(sigcount$per)
 df <- transform(sigcount, uniScaled = per * ratio)
-write.csv(df, file = "/data/msun/projects/pandas/geraldine/02_DEG/fig/bar.zt16sedrw.csv")
+write.csv(df, file = "/data/msun/projects/02_DEG/fig/bar.zt16sedrw.csv")
 #Fig2B
 ggplot(df,aes(x=factor(tissue,levels = c("Hypothal", "Pituitary","Adrenal" ,"BrownAdip","inguinWAT","epididWAT","Kid","Liver" ,"Lung","Heart","Dia","BF","SM" ,"ST","Quad","Gas","Sol" ,"TA" ,"EDL" ,"GasTen","EDLTen","TATen")), y=sig_num,fill=tissue))+
   scale_fill_manual(values = cols)+
