@@ -16,18 +16,6 @@ library(edgeR)
 library(DESeq2)
 library(metap)
 library(openxlsx)
-
-#delete 2 samples
-#epididWAT_F_Sed_ZT4_S201. Pituitary_M_Sed_ZT4_S429. 
-
-dge.list$epididWAT$counts <- dge.list$epididWAT$counts[,!colnames(dge.list$epididWAT$counts) %in% c("epididWAT_F_Sed_ZT4_S201")] 
-dge.list$Pituitary$counts <- dge.list$Pituitary$counts[,!colnames(dge.list$Pituitary$counts) %in% c("Pituitary_M_Sed_ZT4_S429")]
-
-dge.list$epididWAT$samples <- dge.list$epididWAT$samples[!rownames(dge.list$epididWAT$samples) %in% c("epididWAT_F_Sed_ZT4_S201"),]
-dge.list$Pituitary$samples <- dge.list$Pituitary$samples[!rownames(dge.list$Pituitary$samples) %in% c("Pituitary_M_Sed_ZT4_S429"),]
-
-#remove cerebel and cortex
-dge.list <- dge.list[-c(4,5)] 
 ```
 
 # dge between sedvsrw zt4vs16 malevsfemale with DESeq2 
