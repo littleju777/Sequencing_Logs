@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r}
-load("/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+load("/data/msun/projects/01_preprocess/preprocess_filtered.Rdata")
 library(stringr)
 library(tidyverse)
 library(ggpubr)
@@ -30,7 +30,7 @@ walktable <- rbind(expand_grid(filedir.list="deg_table_sedvsrw",condition.list=c
 ```{r}
 GSEAgo <- function(filedir,condition,tissue,outputdir){
   file <- paste(condition[1],condition[2],sep = "vs")
-  inputdir <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/edgeR/",filedir,"/",tissue,"/",tissue,file)
+  inputdir <- str_c("/data/msun/projects/02_DEG/edgeR/",filedir,"/",tissue,"/",tissue,file)
   df <- read.csv(paste(inputdir,"csv",sep = ".")) 
   geneList = df[,"logFC"]
   names(geneList) = as.character(df[,"gene_id"])
@@ -44,7 +44,7 @@ GSEAgo <- function(filedir,condition,tissue,outputdir){
               pvalueCutoff = 1,
               verbose      = FALSE,
               nPermSimple = 10000)
-  outputad <- str_c("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/go/",outputdir,"/",tissue,"/",tissue,file)
+  outputad <- str_c("/data/msun/projects/06_GSEA/edgeR/go/",outputdir,"/",tissue,"/",tissue,file)
   print(str_c(tissue,condition))
   write.csv(go,file = str_c(outputad,".csv"))
 }
@@ -57,7 +57,7 @@ library("AnnotationDbi")
 
 GSEAKEGG <- function(filedir,condition,tissue,outputdir){
   file <- paste(condition[1],condition[2],sep = "vs")
-  inputdir <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/edgeR/",filedir,"/",tissue,"/",tissue,file)
+  inputdir <- str_c("/data/msun/projects/02_DEG/edgeR/",filedir,"/",tissue,"/",tissue,file)
   df <- read.csv(paste(inputdir,"csv",sep = ".")) 
   df$ENTREZID = mapIds(org.Mm.eg.db,
                     keys=df$gene_id, #Column containing Ensembl gene ids
@@ -75,7 +75,7 @@ GSEAKEGG <- function(filedir,condition,tissue,outputdir){
               pvalueCutoff = 1,
               verbose      = FALSE,
               nPermSimple = 10000)
-  outputad <- str_c("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/kegg/",outputdir,"/",tissue,"/",tissue,file)
+  outputad <- str_c("/data/msun/projects/06_GSEA/edgeR/kegg/",outputdir,"/",tissue,"/",tissue,file)
   write.csv(KEGG,file = str_c(outputad,".csv"))
   print(str_c(tissue,condition))
 }
@@ -86,7 +86,7 @@ pwalk(walktable, ~ GSEAKEGG(..1,..2,..3,..4))
 ```{r}
 GSEAgo <- function(filedir,condition,tissue,outputdir){
   file <- paste(condition[1],condition[2],sep = "vs")
-  inputdir <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/",filedir,"/",tissue,"/",tissue,file)
+  inputdir <- str_c("/data/msun/projects/02_DEG/DESeq2/",filedir,"/",tissue,"/",tissue,file)
   df <- read.csv(paste(inputdir,"csv",sep = ".")) 
   geneList = df[,"log2FoldChange"]#
   names(geneList) = as.character(df[,"gene_id"])
@@ -100,7 +100,7 @@ GSEAgo <- function(filedir,condition,tissue,outputdir){
               pvalueCutoff = 1,
               verbose      = FALSE,
               nPermSimple = 10000)
-  outputad <- str_c("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/go/",outputdir,"/",tissue,"/",tissue,file)
+  outputad <- str_c("/data/msun/projects/06_GSEA/DESeq2/go/",outputdir,"/",tissue,"/",tissue,file)
   write.csv(go,file = str_c(outputad,".csv"))
   print(str_c(tissue,condition))
 }
@@ -113,7 +113,7 @@ library("AnnotationDbi")
 
 GSEAKEGG <- function(filedir,condition,tissue,outputdir){
   file <- paste(condition[1],condition[2],sep = "vs")
-  inputdir <- str_c("/data/msun/projects/pandas/geraldine/02_DEG/DESeq2/",filedir,"/",tissue,"/",tissue,file)
+  inputdir <- str_c("/data/msun/projects/02_DEG/DESeq2/",filedir,"/",tissue,"/",tissue,file)
   df <- read.csv(paste(inputdir,"csv",sep = ".")) 
   df$ENTREZID = mapIds(org.Mm.eg.db,
                     keys=df$gene_id, #Column containing Ensembl gene ids
@@ -131,7 +131,7 @@ GSEAKEGG <- function(filedir,condition,tissue,outputdir){
               pvalueCutoff = 1,
               verbose      = FALSE,
               nPermSimple = 10000)
-  outputad <- str_c("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/kegg/",outputdir,"/",tissue,"/",tissue,file)
+  outputad <- str_c("/data/msun/projects/06_GSEA/DESeq2/kegg/",outputdir,"/",tissue,"/",tissue,file)
   write.csv(KEGG,file = str_c(outputad,".csv"))
 }
 pwalk(walktable, ~ GSEAKEGG(..1,..2,..3,..4))
@@ -161,26 +161,26 @@ dge.list <- dge.list %>% map(function(x){
 })
 
 combinealldata <- function(tissue){
-  edger.sedrw <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/go/table_sedvsrw",tissue,sep = "/"),full.names = TRUE) %>% 
+  edger.sedrw <- list.files(path = paste("/data/msun/projects/06_GSEA/edgeR/go/table_sedvsrw",tissue,sep = "/"),full.names = TRUE) %>% 
     map(myfuns) %>% purrr::reduce(inner_join, by = "ID")
   
-  edger.zt <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/go/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
+  edger.zt <- list.files(path = paste("/data/msun/projects/06_GSEA/edgeR/go/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
     map(myfuns) %>% purrr::reduce(inner_join, by = "ID")
   
-  deseq.sedrw <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/go/table_sedvsrw",tissue,sep = "/"), full.names = TRUE) %>% 
+  deseq.sedrw <- list.files(path = paste("/data/msun/projects/06_GSEA/DESeq2/go/table_sedvsrw",tissue,sep = "/"), full.names = TRUE) %>% 
     map(funs) %>% purrr::reduce(inner_join, by = "ID")
   
-  deseq.zt <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/go/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
+  deseq.zt <- list.files(path = paste("/data/msun/projects/06_GSEA/DESeq2/go/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
     map(funs) %>% purrr::reduce(inner_join, by = "ID")
 
     #go info
-  go <- read.csv("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/go/table_sedvsrw/BF/BFF_16_SedvsF_16_RW.csv",row.names = 1) %>% dplyr::select(1:4)
+  go <- read.csv("/data/msun/projects/06_GSEA/DESeq2/go/table_sedvsrw/BF/BFF_16_SedvsF_16_RW.csv",row.names = 1) %>% dplyr::select(1:4)
   #last merge
   data.list <- list(go,edger.sedrw,deseq.sedrw,edger.zt,deseq.zt)
   combined.table <- data.list %>% purrr::reduce(inner_join, by = "ID") 
   print(tissue)
   openxlsx::write.xlsx(combined.table,file =
-              paste(paste("/data/msun/projects/pandas/geraldine/06_GSEA/combined_go",tissue,sep = "/"),".xlsx",sep = ""))
+              paste(paste("/data/msun/projects/06_GSEA/combined_go",tissue,sep = "/"),".xlsx",sep = ""))
 }
 
 walk(names(dge.list), ~ combinealldata(.))
@@ -210,26 +210,26 @@ dge.list <- dge.list %>% map(function(x){
 })
 
 combinealldata <- function(tissue){
-  edger.sedrw <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/kegg/table_sedvsrw",tissue,sep = "/"),full.names = TRUE) %>% 
+  edger.sedrw <- list.files(path = paste("/data/msun/projects/06_GSEA/edgeR/kegg/table_sedvsrw",tissue,sep = "/"),full.names = TRUE) %>% 
     map(myfuns) %>% purrr::reduce(inner_join, by = "ID")
   
-  edger.zt <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/edgeR/kegg/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
+  edger.zt <- list.files(path = paste("/data/msun/projects/06_GSEA/edgeR/kegg/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
     map(myfuns) %>% purrr::reduce(inner_join, by = "ID")
   
-  deseq.sedrw <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/kegg/table_sedvsrw",tissue,sep = "/"), full.names = TRUE) %>% 
+  deseq.sedrw <- list.files(path = paste("/data/msun/projects/06_GSEA/DESeq2/kegg/table_sedvsrw",tissue,sep = "/"), full.names = TRUE) %>% 
     map(funs) %>% purrr::reduce(inner_join, by = "ID")
   
-  deseq.zt <- list.files(path = paste("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/kegg/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
+  deseq.zt <- list.files(path = paste("/data/msun/projects/06_GSEA/DESeq2/kegg/table_zt4vs16",tissue,sep = "/"), full.names = TRUE) %>% 
     map(funs) %>% purrr::reduce(inner_join, by = "ID")
 
     #kegg info
-  kegg <- read.csv("/data/msun/projects/pandas/geraldine/06_GSEA/DESeq2/kegg/table_sedvsrw/BF/BFF_16_SedvsF_16_RW.csv",row.names = 1) %>% dplyr::select(1:3)
+  kegg <- read.csv("/data/msun/projects/06_GSEA/DESeq2/kegg/table_sedvsrw/BF/BFF_16_SedvsF_16_RW.csv",row.names = 1) %>% dplyr::select(1:3)
   #last merge
   data.list <- list(kegg,edger.sedrw,deseq.sedrw,edger.zt,deseq.zt)
   combined.table <- data.list %>% purrr::reduce(inner_join, by = "ID") 
   print(tissue)
   openxlsx::write.xlsx(combined.table,file =
-              paste(paste("/data/msun/projects/pandas/geraldine/06_GSEA/combined_kegg",tissue,sep = "/"),".xlsx",sep = ""))
+              paste(paste("/data/msun/projects/06_GSEA/combined_kegg",tissue,sep = "/"),".xlsx",sep = ""))
 }
 
 walk(names(dge.list), ~ combinealldata(.))
