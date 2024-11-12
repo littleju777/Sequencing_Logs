@@ -8,7 +8,7 @@ output: html_document
 #step 1: get the gene expression table
 ```{r echo=FALSE,results = 'hide' #1.read and merge the tab data with no colnames and rownames}
 library(tidyverse)
-files <- dir(path = "/data/msun/projects/pandas/geraldine/raw_data/readcountstab", pattern = "*.tab", full.names = T) #path of all tab data
+files <- dir(path = "/data/msun/projects/raw_data/readcountstab", pattern = "*.tab", full.names = T) #path of all tab data
 count <- files %>%
   map(read_tsv,  skip = 4, col_names = FALSE ) %>% 
   purrr::reduce(cbind)
@@ -18,7 +18,7 @@ count <- files %>%
 
 ```{r 2.get the sample names from tab files names and assign the true colnames to table}
 datasets <- files %>%
-  stringr::str_replace("/data/msun/projects/pandas/geraldine/raw_data/readcountstab/", "") %>% # replace pathname at the beginning of filename
+  stringr::str_replace("/data/msun/projects/raw_data/readcountstab/", "") %>% # replace pathname at the beginning of filename
   stringr::str_replace("ReadsPerGene.out.tab", "") # replace ReadsPerGene.out.tab end of name
 columnnames <- c()
 for (i in datasets) {
@@ -77,7 +77,7 @@ names(count) <- str_replace(names(count), "-reversestrand", "")
 ```{r }
 #correct the sample names
 library(edgeR)
-#correct_name=read.csv("/data/msun/projects/pandas/geraldine/raw_data/correct_samplenames.csv",row.names = 1) 
+#correct_name=read.csv("/data/msun/projects/raw_data/correct_samplenames.csv",row.names = 1) 
 #t_count <- as.data.frame(t(count)) 
 #correct_count <- merge(t_count,correct_name,by=0)#merge by rownames
 #rownames(correct_count) <- correct_count$Sample.names.corrected
@@ -143,7 +143,7 @@ dge$genes <- gene_id %>%
   left_join(y = unique(annotations[, c("gene_id","gene_name", "description","gene_biotype")]),by = "gene_id")
 
 #add meatadata
-metadata <- read.csv("/data/msun/projects/pandas/geraldine/raw_data/samplenames.csv") 
+metadata <- read.csv("/data/msun/projects/raw_data/samplenames.csv") 
 metadata$correctednames <- str_c(metadata$Tissue,'_',metadata$Sex,'_',metadata$Group,'_ZT',metadata$ZT,'_S',seq(1, length(rownames(metadata))))
 sample_id <- as.data.frame(colnames(dge))
 names(sample_id) <- "sample.names.orignal"
@@ -154,11 +154,11 @@ dge$samples <- sample_id %>%
 #correct names
 colnames(dge$counts) <- metadata$correctednames
 rownames(dge$samples) <- metadata$correctednames
-write.csv(metadata,file = "/data/msun/projects/pandas/geraldine/raw_data/samples_metadata_correctnames.csv")
+write.csv(metadata,file = "/data/msun/projects/raw_data/samples_metadata_correctnames.csv")
 
 #updata metadata by adding library size
 summary <- dge$samples %>% .[,-which(colnames(.) %in% c("correctednames","group","norm.factors"))]
-write.csv(summary,file = "/data/msun/projects/pandas/geraldine/01_preprocess/summary_sample.csv")
+write.csv(summary,file = "/data/msun/projects/01_preprocess/summary_sample.csv")
 ```
 
 #normalize by tissue and add genes
@@ -181,10 +181,10 @@ dge.norm$samples <- ribiosUtils::removeColumns(dge.norm$samples,c("lib.size.1", 
 #another form: convert rownames to gene symbol
 expr_symbol <- left_join(as.data.frame(expr) %>%  mutate("gene_id"=rownames(.)),dge.norm$genes,by="gene_id") %>% .[,-which(colnames(.) %in% c("gene_id","description","gene_biotype"))] %>% dplyr::select(gene_name,everything()) %>% na.omit(.) 
 
-save(count,count_filter,count_filter_sample_filter,dge,dge.list,dge.norm,expr,expr_symbol,expr.list,file = "/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_filtered.Rdata")
+save(count,count_filter,count_filter_sample_filter,dge,dge.list,dge.norm,expr,expr_symbol,expr.list,file = "/data/msun/projects/01_preprocess/preprocess_filtered.Rdata")
 
-write.csv(dge$counts,file = "/data/msun/projects/pandas/geraldine/01_preprocess/filtered_counts.csv")
-write.csv(expr,file = "/data/msun/projects/pandas/geraldine/01_preprocess/filtered_norm.csv")
+write.csv(dge$counts,file = "/data/msun/projects/01_preprocess/filtered_counts.csv")
+write.csv(expr,file = "/data/msun/projects/01_preprocess/filtered_norm.csv")
 
 #2. norm with DESeq2
 norm.list = map(dge.list, function(x){
@@ -194,7 +194,7 @@ norm.list = map(dge.list, function(x){
   normalized <- counts(y, normalized=TRUE)
   normalized
 })  %>% purrr::reduce(cbind)
-write.csv(norm.list,file = "/data/msun/projects/pandas/geraldine/01_preprocess/norm_deseq.csv")
+write.csv(norm.list,file = "/data/msun/projects/01_preprocess/norm_deseq.csv")
 
 ```
 
@@ -213,7 +213,7 @@ nofilter_dge$genes <- gene_nofilter %>%
   left_join(y = unique(annotations[, c("gene_id","gene_name", "description","gene_biotype")]),by = "gene_id")
 
 #add metadata
-metadata <- read.csv("/data/msun/projects/pandas/geraldine/raw_data/metadata.csv") 
+metadata <- read.csv("/data/msun/projects/raw_data/metadata.csv") 
 sample_id <- as.data.frame(colnames(nofilter_dge))
 names(sample_id) <- "RecordID"
 nofilter_dge$samples <- sample_id %>% 
@@ -229,10 +229,10 @@ nofilter_dge.norm <- DGEList(counts = nofilter_dgecounts,samples = nofilter_dges
 nofilter_dge.norm$samples <- ribiosUtils::removeColumns(nofilter_dge.norm$samples,c("lib.size.1", "norm.factors")) %>% ribiosUtils::replaceColumnName(data.frame=.,old.names = "norm.factors.1",new.names = "norm.factors")
 rownames(nofilter_dge.norm$genes) <- nofilter_dge.norm$genes$gene_id
 nofilter_expr_symbol <- merge(as.data.frame(nofilter_expr),nofilter_dge.norm$genes,by = 0,all.x=TRUE) %>% .[,-c(1,388,387,385)] %>% dplyr::select(gene_name,everything()) %>% na.omit(.)
-#write.table(nofilter_expr_symbol,file='/data/msun/projects/pandas/geraldine/04_compass/nofilter_expr_symbol.tsv',sep = "\t",quote = FALSE)
-#write.table(expr_symbol,file='/data/msun/projects/pandas/geraldine/04_compass/expr_symbol.tsv',sep = "\t",quote = FALSE)
+#write.table(nofilter_expr_symbol,file='/data/msun/projects/04_compass/nofilter_expr_symbol.tsv',sep = "\t",quote = FALSE)
+#write.table(expr_symbol,file='/data/msun/projects/04_compass/expr_symbol.tsv',sep = "\t",quote = FALSE)
 #modify in spreadsheet
-save(nofilter_dge.norm,nofilter_expr,nofilter_expr_symbol,file = "/data/msun/projects/pandas/geraldine/01_preprocess/preprocess_nofilter.Rdata")
+save(nofilter_dge.norm,nofilter_expr,nofilter_expr_symbol,file = "/data/msun/projects/01_preprocess/preprocess_nofilter.Rdata")
 #```
 
 #get tpm form data
@@ -241,7 +241,7 @@ save(nofilter_dge.norm,nofilter_expr,nofilter_expr_symbol,file = "/data/msun/pro
 library(tidyverse)
 library(parallel)
 cl <- makeCluster(0.75*detectCores()) 
-gtf <- as.data.frame(rtracklayer::import("/data/msun/projects/pandas/geraldine/raw_data/Mus_musculus.GRCm38.102.gtf"))
+gtf <- as.data.frame(rtracklayer::import("/data/msun/projects/raw_data/Mus_musculus.GRCm38.102.gtf"))
 exon <- gtf[gtf$type=="exon", c("start","end","gene_id")]
 exon_bygeneid <- split(exon,exon$gene_id) 
 efflen <- parLapply(cl,exon_bygeneid,function(x){
@@ -250,7 +250,7 @@ efflen <- parLapply(cl,exon_bygeneid,function(x){
       })
 geneid_efflen <- data.frame(geneid=names(efflen),
                                 efflen=as.numeric(efflen))
-write.csv(geneid_efflen,"/data/msun/projects/pandas/geraldine/01_preprocess/mus_genelength_id.csv")
+write.csv(geneid_efflen,"/data/msun/projects/01_preprocess/mus_genelength_id.csv")
 
 #transfer counts to TPM
 efflen <- geneid_efflen[match(rownames(dge$counts),
@@ -266,8 +266,8 @@ tpm_geneid <- as.data.frame(apply(dge$counts,2,counts2TPM))
 #another form: convert rownames to gene symbol
 tpm_symbol <- as.data.frame(tpm_geneid) %>% mutate(.,"gene_id"=rownames(.)) %>% left_join(.,dge$genes,by="gene_id") %>% .[ , -which(colnames(.) %in% c("gene_id","description","gene_biotype"))] %>% dplyr::select(gene_name,everything()) %>% na.omit(.)
 tpm_symbol_duplicated <- tpm_symbol[!duplicated(tpm_symbol$gene_name),]
-write.table(tpm_symbol_duplicated,file='/data/msun/projects/pandas/geraldine/04_compass/tpm_symbol_duplicated.tsv',sep = "\t",row.names = FALSE)
-save(tpm_geneid,tpm_symbol,tpm_symbol_duplicated,file = "/data/msun/projects/pandas/geraldine/01_preprocess/tpm.Rdata")
+write.table(tpm_symbol_duplicated,file='/data/msun/projects/04_compass/tpm_symbol_duplicated.tsv',sep = "\t",row.names = FALSE)
+save(tpm_geneid,tpm_symbol,tpm_symbol_duplicated,file = "/data/msun/projects/01_preprocess/tpm.Rdata")
 ```
 
 #run with python on terminal
@@ -278,10 +278,10 @@ library(reticulate)
 #remove NA generated by read in python
 import numpy as np
 import pandas as pd
-df = pd.read_csv('/data/msun/projects/pandas/geraldine/04_compass/tpm_symbol_duplicated.tsv', sep='\t', index_col=None, header=0)
+df = pd.read_csv('/data/msun/projects/04_compass/tpm_symbol_duplicated.tsv', sep='\t', index_col=None, header=0)
 df.dropna(subset=['gene_name'], inplace=True)
 df=df.rename(columns = {'gene_name':'Gene Symbol'})
-df.to_csv('/data/msun/projects/pandas/geraldine/04_compass/tpm_symbol.tsv', sep='\t', index=False)
+df.to_csv('/data/msun/projects/04_compass/tpm_symbol.tsv', sep='\t', index=False)
 df
 ```
 
@@ -291,7 +291,7 @@ table <- left_join(as.data.frame(dge$counts) %>% mutate(gene_id = rownames(.)),a
 kind_table <- replace(table,table>0,1) %>% .[,-which(colnames(.) %in% c("gene_biotype"))]
 kind_table$gene_biotype <- table$gene_biotype 
 df <- aggregate(.~gene_biotype, kind_table, sum) %>% column_to_rownames(.,var = "gene_biotype")
-write.csv(df,"/data/msun/projects/pandas/geraldine/01_preprocess/qc_by_featureRNA.csv")
+write.csv(df,"/data/msun/projects/01_preprocess/qc_by_featureRNA.csv")
 
 #make a table of biotype percentage
 library(dplyr)
@@ -299,7 +299,7 @@ genebiotype <- dge.list[["Adrenal"]][["genes"]]
 df <- genebiotype %>% 
   group_by(gene_biotype) %>%
   summarize(biotype_percent = n()/25859, biotype_num = n())
-write.csv(df,"/data/msun/projects/pandas/geraldine/01_preprocess/allgene_biotype_num_percentage.csv")
+write.csv(df,"/data/msun/projects/01_preprocess/allgene_biotype_num_percentage.csv")
 
 #the biotype percentage of shared-expressed gene in 22 tissues 
 dge.list$epididWAT$counts <- dge.list$epididWAT$counts[,!colnames(dge.list$epididWAT$counts) %in% c("epididWAT_F_Sed_ZT4_S201")] 
@@ -317,7 +317,7 @@ genebiotype <- dge.list[["Adrenal"]][["genes"]] %>%
 df <- genebiotype %>% 
   group_by(gene_biotype) %>%
   summarize(biotype_percent = n()/10197, biotype_num = n())
-write.csv(df,"/data/msun/projects/pandas/geraldine/01_preprocess/ubiquitousgene_biotype_num_percentage.csv")
+write.csv(df,"/data/msun/projects/01_preprocess/ubiquitousgene_biotype_num_percentage.csv")
 
 ```
 
